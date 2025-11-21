@@ -14,6 +14,7 @@ import Cases from "@/pages/cases";
 import CaseDetails from "@/pages/case-details";
 import CalendarPage from "@/pages/calendar";
 import Transcripts from "@/pages/transcripts";
+import GuestMeeting from "@/pages/guest-meeting";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
         <Route path="/schedule" component={Schedule} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/meeting/:id" component={MeetingRoom} />
+        <Route path="/meet/guest/:id" component={GuestMeeting} />
         <Route path="/cases" component={Cases} />
         <Route path="/cases/:id" component={CaseDetails} />
         <Route path="/transcripts" component={Transcripts} />

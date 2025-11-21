@@ -1,11 +1,23 @@
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { useLocation } from "wouter";
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const [location] = useLocation();
+  const isGuestRoute = location.startsWith("/meet/guest");
+
+  if (isGuestRoute) {
+    return (
+      <div className="min-h-screen bg-background w-full animate-in fade-in duration-300">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-background w-full overflow-hidden">
       <Sidebar />
