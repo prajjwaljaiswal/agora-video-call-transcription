@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -21,15 +21,38 @@ export default function MeetingRoom() {
   const [showTranscript, setShowTranscript] = useState(true);
   const [copied, setCopied] = useState(false);
   
+  const videoRef = useRef<HTMLVideoElement>(null);
+
   const meeting = meetings.find(m => m.id === params?.id);
   const guestLink = `https://gateway.legal/meet/guest/${meeting?.id || 'demo'}`;
 
   useEffect(() => {
-    // Simulate transcript generation upon "end meeting" or live
+    let stream: MediaStream | null = null;
+
+    if (isVideoOn) {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then((s) => {
+          stream = s;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        })
+        .catch((err) => {
+          console.error("Error accessing webcam:", err);
+          toast({
+            title: "Camera Error",
+            description: "Could not access your camera. Using avatar instead.",
+            variant: "destructive"
+          });
+        });
+    }
+
     return () => {
-      // Cleanup
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
     };
-  }, []);
+  }, [isVideoOn]);
 
   const handleEndCall = () => {
     if (meeting) {
@@ -97,11 +120,29 @@ export default function MeetingRoom() {
         <div className="flex-1 grid grid-cols-2 gap-4">
           {/* Self View */}
           <Card className="bg-sidebar border-none relative overflow-hidden flex items-center justify-center group">
-            <div className="absolute inset-0 bg-black/40 z-10"></div>
-            <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&auto=format&fit=crop&q=60" className="absolute inset-0 w-full h-full object-cover" alt="Participant" />
-            <div className="absolute bottom-4 left-4 z-20 text-white">
+            {/* Webcam Video */}
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              muted 
+              playsInline
+              className={cn(
+                "absolute inset-0 w-full h-full object-cover mirror-mode transform scale-x-[-1]", 
+                !isVideoOn && "hidden"
+              )} 
+            />
+            
+            {/* Fallback Image (only if video fails or hasn't loaded, but effectively covered by video if active) */}
+            <img 
+              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&auto=format&fit=crop&q=60" 
+              className={cn("absolute inset-0 w-full h-full object-cover", isVideoOn && "hidden")} 
+              alt="Participant" 
+            />
+            
+            <div className="absolute bottom-4 left-4 z-20 text-white bg-black/50 px-2 py-1 rounded text-sm backdrop-blur-sm">
               <p className="font-medium">You (Solicitor)</p>
             </div>
+            
             {!isVideoOn && (
                <div className="absolute inset-0 bg-sidebar flex items-center justify-center z-30">
                  <div className="w-20 h-20 rounded-full bg-sidebar-primary flex items-center justify-center">
