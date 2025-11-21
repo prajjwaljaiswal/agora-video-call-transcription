@@ -146,10 +146,17 @@ export default function GuestMeeting() {
              </Card>
            ))}
 
+           {/* Simulated Host (if no real participants connected) */}
            {remoteParticipants.length === 0 && (
-             <Card className="bg-muted/20 border-dashed border-2 flex items-center justify-center">
-               <div className="text-center text-muted-foreground">
-                 <p>Waiting for host...</p>
+             <Card className="bg-sidebar border-none relative overflow-hidden flex items-center justify-center">
+               <img 
+                 src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=800&auto=format&fit=crop&q=60" 
+                 className="absolute inset-0 w-full h-full object-cover opacity-90" 
+                 alt="Solicitor (Host)" 
+               />
+               <div className="absolute bottom-4 left-4 z-20 text-white bg-black/50 px-3 py-1 rounded text-sm backdrop-blur-sm flex items-center gap-2">
+                 <Video className="w-3 h-3 text-green-400" />
+                 Solicitor (Host)
                </div>
              </Card>
            )}
