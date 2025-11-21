@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useStore } from "@/lib/store";
+import { useLiveMeeting } from "@/hooks/use-live-meeting";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,7 +14,7 @@ import { cn } from "@/lib/utils";
 export default function MeetingRoom() {
   const [, params] = useRoute("/meeting/:id");
   const [, setLocation] = useLocation();
-  const { meetings, generateTranscript } = useStore();
+  const { meetings, generateTranscript, currentUser } = useStore();
   const { toast } = useToast();
   
   const [isMicOn, setIsMicOn] = useState(true);
@@ -25,6 +26,32 @@ export default function MeetingRoom() {
 
   const meeting = meetings.find(m => m.id === params?.id);
   const guestLink = `https://gateway.legal/meet/guest/${meeting?.id || 'demo'}`;
+
+  // Use the live meeting hook to sync participants
+  const { participants, joinMeeting, leaveMeeting, toggleMic, toggleVideo, localParticipantId } = useLiveMeeting(meeting?.id);
+
+  // Auto-join as host when entering the room
+  useEffect(() => {
+    if (meeting && !localParticipantId) {
+      joinMeeting(currentUser?.name || "Solicitor (Host)", 'host');
+    }
+    // Cleanup on unmount
+    return () => {
+      // Optionally leave? For now we keep them to simulate persistence on refresh, 
+      // but technically navigating away should leave.
+      leaveMeeting(); 
+    };
+  }, [meeting?.id]);
+
+  // Sync local media state to shared state
+  useEffect(() => {
+    toggleMic(!isMicOn);
+  }, [isMicOn]);
+
+  useEffect(() => {
+    toggleVideo(!isVideoOn);
+  }, [isVideoOn]);
+
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -58,11 +85,12 @@ export default function MeetingRoom() {
     if (meeting) {
       generateTranscript(meeting.id);
     }
+    leaveMeeting();
     setLocation("/");
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(guestLink);
+    navigator.clipboard.writeText(window.location.origin + `/meet/guest/${meeting?.id}`);
     setCopied(true);
     toast({
       title: "Link Copied",
@@ -73,6 +101,11 @@ export default function MeetingRoom() {
 
   if (!meeting) return <div className="p-8">Meeting not found</div>;
 
+  // Filter participants to show grid
+  // If it's just me, show me large. If others, show grid.
+  // We always show "Me" as the first card (local view)
+  const remoteParticipants = participants.filter(p => p.id !== localParticipantId);
+
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col gap-4">
       <div className="flex items-center justify-between px-2">
@@ -80,7 +113,7 @@ export default function MeetingRoom() {
           <h2 className="text-xl font-bold font-serif">{meeting.title}</h2>
           <p className="text-sm text-muted-foreground flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            Encrypted • Recording Active
+            Encrypted • Recording Active • {participants.length} Participant{participants.length !== 1 && 's'}
           </p>
         </div>
         
@@ -101,7 +134,7 @@ export default function MeetingRoom() {
               <div className="space-y-2">
                 <Label>Secure Guest Link</Label>
                 <div className="flex gap-2">
-                  <Input value={guestLink} readOnly className="bg-muted/50 font-mono text-sm" />
+                  <Input value={window.location.origin + `/meet/guest/${meeting?.id}`} readOnly className="bg-muted/50 font-mono text-sm" />
                   <Button size="icon" variant="outline" onClick={copyToClipboard}>
                     {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                   </Button>
@@ -117,7 +150,11 @@ export default function MeetingRoom() {
 
       <div className="flex-1 flex gap-4 min-h-0">
         {/* Main Video Grid */}
-        <div className="flex-1 grid grid-cols-2 gap-4">
+        <div className={cn("flex-1 grid gap-4", 
+          remoteParticipants.length === 0 ? "grid-cols-1" : 
+          remoteParticipants.length === 1 ? "grid-cols-2" : 
+          "grid-cols-2 md:grid-cols-3"
+        )}>
           {/* Self View */}
           <Card className="bg-sidebar border-none relative overflow-hidden flex items-center justify-center group">
             {/* Webcam Video */}
@@ -132,7 +169,7 @@ export default function MeetingRoom() {
               )} 
             />
             
-            {/* Fallback Image (only if video fails or hasn't loaded, but effectively covered by video if active) */}
+            {/* Fallback Image */}
             <img 
               src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&auto=format&fit=crop&q=60" 
               className={cn("absolute inset-0 w-full h-full object-cover", isVideoOn && "hidden")} 
@@ -140,7 +177,7 @@ export default function MeetingRoom() {
             />
             
             <div className="absolute bottom-4 left-4 z-20 text-white bg-black/50 px-2 py-1 rounded text-sm backdrop-blur-sm">
-              <p className="font-medium">You (Solicitor)</p>
+              <p className="font-medium">You ({currentUser?.name})</p>
             </div>
             
             {!isVideoOn && (
@@ -152,13 +189,39 @@ export default function MeetingRoom() {
             )}
           </Card>
 
-          {/* Other Participant */}
-          <Card className="bg-sidebar border-none relative overflow-hidden flex items-center justify-center">
-            <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=800&auto=format&fit=crop&q=60" className="absolute inset-0 w-full h-full object-cover" alt="Expert" />
-            <div className="absolute bottom-4 left-4 z-20 text-white">
-              <p className="font-medium">Dr. Alan Grant</p>
+          {/* Remote Participants */}
+          {remoteParticipants.map(p => (
+            <Card key={p.id} className="bg-sidebar border-none relative overflow-hidden flex items-center justify-center">
+              {/* Simulate remote video with a placeholder image, or random Unsplash */}
+              {p.isVideoOff ? (
+                 <div className="absolute inset-0 bg-sidebar flex items-center justify-center">
+                   <div className="w-20 h-20 rounded-full bg-sidebar-primary flex items-center justify-center">
+                      <span className="text-2xl font-bold text-white">{p.name.charAt(0)}</span>
+                   </div>
+                 </div>
+              ) : (
+                <img 
+                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} 
+                  className="absolute inset-0 w-full h-full object-cover bg-slate-200" 
+                  alt={p.name} 
+                />
+              )}
+              
+              <div className="absolute bottom-4 left-4 z-20 text-white bg-black/50 px-3 py-1 rounded text-sm backdrop-blur-sm flex items-center gap-2">
+                {p.isMuted && <MicOff className="w-3 h-3 text-red-400" />}
+                <p className="font-medium">{p.name} {p.role === 'guest' && '(Guest)'}</p>
+              </div>
+            </Card>
+          ))}
+
+          {/* Show placeholder if waiting for others and none joined */}
+          {remoteParticipants.length === 0 && (
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center text-muted-foreground bg-background/80 p-6 rounded-xl backdrop-blur shadow-lg pointer-events-none">
+              <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <h3 className="font-medium">Waiting for others to join...</h3>
+              <p className="text-sm">Share the guest link to invite participants</p>
             </div>
-          </Card>
+          )}
         </div>
 
         {/* Side Panel (Transcript/Chat) */}

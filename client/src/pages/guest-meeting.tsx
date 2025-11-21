@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useStore } from "@/lib/store";
+import { useLiveMeeting } from "@/hooks/use-live-meeting";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,24 @@ export default function GuestMeeting() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const meeting = meetings.find(m => m.id === params?.id) || { title: "Legal Assessment Meeting", id: "demo" };
+  
+  const { participants, joinMeeting, leaveMeeting, toggleMic, toggleVideo, localParticipantId } = useLiveMeeting(meeting?.id);
+
+  // Sync local media state to shared state
+  useEffect(() => {
+    if (joined) toggleMic(!isMicOn);
+  }, [isMicOn, joined]);
+
+  useEffect(() => {
+    if (joined) toggleVideo(!isVideoOn);
+  }, [isVideoOn, joined]);
+
+  // Cleanup on leave
+  useEffect(() => {
+    return () => {
+      if (joined) leaveMeeting();
+    };
+  }, [joined]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -57,9 +76,12 @@ export default function GuestMeeting() {
       toast({ title: "Name Required", description: "Please enter your full name to join.", variant: "destructive" });
       return;
     }
+    joinMeeting(name, 'guest');
     setJoined(true);
     toast({ title: "Joining Meeting", description: "Connecting to secure session..." });
   };
+
+  const remoteParticipants = participants.filter(p => p.id !== localParticipantId);
 
   if (joined) {
     return (
@@ -70,7 +92,7 @@ export default function GuestMeeting() {
              <span className="font-bold">{meeting.title}</span>
              <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">Guest Access</span>
            </div>
-           <Button variant="destructive" size="sm" onClick={() => setLocation("/")}>
+           <Button variant="destructive" size="sm" onClick={() => { leaveMeeting(); setLocation("/"); }}>
              <PhoneOff className="w-4 h-4 mr-2" /> Leave
            </Button>
         </header>
@@ -100,13 +122,37 @@ export default function GuestMeeting() {
              </div>
            </Card>
 
-           {/* Host View (Simulated) */}
-           <Card className="bg-sidebar border-none relative overflow-hidden flex items-center justify-center">
-             <img src="https://images.unsplash.com/photo-1556157382-97eda2d62296?w=800&auto=format&fit=crop&q=60" className="absolute inset-0 w-full h-full object-cover opacity-90" alt="Host" />
-             <div className="absolute bottom-4 left-4 z-20 text-white bg-black/50 px-3 py-1 rounded text-sm backdrop-blur-sm">
-               Solicitor (Host)
-             </div>
-           </Card>
+           {/* Other Participants */}
+           {remoteParticipants.map(p => (
+             <Card key={p.id} className="bg-sidebar border-none relative overflow-hidden flex items-center justify-center">
+               {/* Simulate remote video */}
+               {p.isVideoOff ? (
+                 <div className="absolute inset-0 bg-sidebar flex items-center justify-center">
+                   <div className="w-20 h-20 rounded-full bg-sidebar-primary flex items-center justify-center">
+                      <span className="text-2xl font-bold text-white">{p.name.charAt(0)}</span>
+                   </div>
+                 </div>
+               ) : (
+                 <img 
+                   src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${p.name}`} 
+                   className="absolute inset-0 w-full h-full object-cover bg-slate-200" 
+                   alt={p.name} 
+                 />
+               )}
+               <div className="absolute bottom-4 left-4 z-20 text-white bg-black/50 px-3 py-1 rounded text-sm backdrop-blur-sm flex items-center gap-2">
+                 {p.isMuted && <MicOff className="w-3 h-3 text-red-400" />}
+                 {p.name} {p.role === 'host' && '(Host)'}
+               </div>
+             </Card>
+           ))}
+
+           {remoteParticipants.length === 0 && (
+             <Card className="bg-muted/20 border-dashed border-2 flex items-center justify-center">
+               <div className="text-center text-muted-foreground">
+                 <p>Waiting for host...</p>
+               </div>
+             </Card>
+           )}
         </div>
 
         <div className="h-24 flex items-center justify-center gap-4 bg-card border-t">
