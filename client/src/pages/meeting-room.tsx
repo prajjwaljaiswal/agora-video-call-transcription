@@ -3,18 +3,26 @@ import { useRoute, useLocation } from "wouter";
 import { useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Share, Users, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Share, Users, FileText, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function MeetingRoom() {
   const [, params] = useRoute("/meeting/:id");
   const [, setLocation] = useLocation();
   const { meetings, generateTranscript } = useStore();
+  const { toast } = useToast();
+  
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [showTranscript, setShowTranscript] = useState(true);
+  const [copied, setCopied] = useState(false);
   
   const meeting = meetings.find(m => m.id === params?.id);
+  const guestLink = `https://gateway.legal/meet/guest/${meeting?.id || 'demo'}`;
 
   useEffect(() => {
     // Simulate transcript generation upon "end meeting" or live
@@ -30,6 +38,16 @@ export default function MeetingRoom() {
     setLocation("/");
   };
 
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(guestLink);
+    setCopied(true);
+    toast({
+      title: "Link Copied",
+      description: "Guest invitation link copied to clipboard.",
+    });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   if (!meeting) return <div className="p-8">Meeting not found</div>;
 
   return (
@@ -42,9 +60,36 @@ export default function MeetingRoom() {
             Encrypted • Recording Active
           </p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Share className="w-4 h-4" /> Invite Guest
-        </Button>
+        
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Share className="w-4 h-4" /> Invite Guest
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Invite Guest</DialogTitle>
+              <DialogDescription>
+                Share this secure link to invite external participants (experts, witnesses) to this meeting.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Secure Guest Link</Label>
+                <div className="flex gap-2">
+                  <Input value={guestLink} readOnly className="bg-muted/50 font-mono text-sm" />
+                  <Button size="icon" variant="outline" onClick={copyToClipboard}>
+                    {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground bg-yellow-50 p-3 rounded text-yellow-800 border border-yellow-100">
+                <strong>Note:</strong> Guests will be placed in a waiting room until admitted by the host.
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0">
