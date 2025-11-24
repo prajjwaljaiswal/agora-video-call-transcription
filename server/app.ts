@@ -1,6 +1,11 @@
 import { type Server } from "node:http";
 
-import express, { type Express, type Request, Response, NextFunction } from "express";
+import express, {
+  type Express,
+  type Request,
+  Response,
+  NextFunction,
+} from "express";
 import { registerRoutes } from "./routes";
 
 export function log(message: string, source = "express") {
@@ -16,16 +21,18 @@ export function log(message: string, source = "express") {
 
 export const app = express();
 
-declare module 'http' {
+declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown
+    rawBody: unknown;
   }
 }
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -59,7 +66,7 @@ app.use((req, res, next) => {
 });
 
 export default async function runApp(
-  setup: (app: Express, server: Server) => Promise<void>,
+  setup: (app: Express, server: Server) => Promise<void>
 ) {
   const server = await registerRoutes(app);
 
@@ -79,12 +86,19 @@ export default async function runApp(
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  const port = parseInt(process.env.PORT || "5000", 10);
+  const host =
+    process.env.HOST ||
+    (process.platform === "win32" ? "localhost" : "0.0.0.0");
+
+  server.listen(
+    {
+      port,
+      host,
+      ...(process.platform !== "win32" && { reusePort: true }),
+    },
+    () => {
+      log(`serving on ${host}:${port}`);
+    }
+  );
 }

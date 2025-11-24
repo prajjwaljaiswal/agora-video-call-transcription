@@ -37,7 +37,7 @@ export interface Transcript {
   id: string;
   meetingId: string;
   content: string;
-  date: Date;
+  date: Date | string;
   participants: string[];
 }
 
