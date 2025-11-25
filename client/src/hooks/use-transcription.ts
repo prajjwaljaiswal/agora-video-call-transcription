@@ -65,7 +65,8 @@ declare global {
 export function useTranscription(
   audioTrack: any | null, // Not used but kept for API compatibility
   speakerName: string = "You",
-  enabled: boolean = true
+  enabled: boolean = true,
+  onSegmentShared?: (segment: TranscriptSegment) => void // Callback to share segments
 ) {
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [isListening, setIsListening] = useState(false);
@@ -207,7 +208,14 @@ export function useTranscription(
               const filtered = prev.filter(
                 (s) => !(s.speaker === speakerName && !s.isFinal)
               );
-              return [...filtered, newSegment];
+              const updated = [...filtered, newSegment];
+
+              // Share the segment via callback if provided
+              if (onSegmentShared) {
+                onSegmentShared(newSegment);
+              }
+
+              return updated;
             });
           } else {
             // Interim result - update or add interim segment

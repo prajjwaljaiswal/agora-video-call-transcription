@@ -329,5 +329,6 @@ export function useLiveMeeting(meetingId: string | undefined) {
     leaveMeeting,
     toggleMic,
     toggleVideo,
+    socket: socketRef.current, // Expose socket for transcript sharing
   };
 }

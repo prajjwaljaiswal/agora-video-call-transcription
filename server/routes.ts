@@ -221,6 +221,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
+    // Handle transcript segment sharing
+    socket.on("transcriptSegment", ({ meetingId, segment }: { meetingId: string; segment: any }) => {
+      try {
+        if (meetingId && segment) {
+          // Broadcast transcript segment to all participants in the meeting (except sender)
+          socket.to(meetingId).emit("transcriptSegment", { meetingId, segment });
+          log(`Broadcasted transcript segment from ${segment.speaker} in meeting ${meetingId}`);
+        }
+      } catch (error) {
+        log(`TranscriptSegment error: ${error}`);
+      }
+    });
+
     // Handle disconnect
     socket.on("disconnect", (reason) => {
       log(`Socket.IO client disconnected: ${socket.id} - Reason: ${reason}`);
